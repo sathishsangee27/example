@@ -21,9 +21,8 @@ This document defines the baseline data that IPOPS must collect whenever a Virtu
 - [Step 4 — vmstuck & vmtree (Stuck VSIs)](#step-4--vmstuck--vmtree-stuck-vsis)
 - [Step 5 — IBM Cloud Logs (ICL)](#step-5--ibm-cloud-logs-icl)
 - [Step 6 — Hypervisor Host Evidence](#step-6--hypervisor-host-evidence)
-- [Step 7 — Blast Radius & Change Correlation](#step-7--blast-radius--change-correlation)
 - [Symptom-Specific Additions](#symptom-specific-additions)
-- [Escalation Guide](#escalation-guide)
+
 
 ---
 
@@ -332,30 +331,6 @@ After completing Steps 1–6, collect these additional items based on the observ
 - [ ] Check ICL `capacity_alert` or `RCOS_insufficient_running_pods` alerts for the zone
 - [ ] For SGX / Secure Boot VSIs: verify the node annotation `IntelSGX=true` and `SecureBootCapable` are present on available nodes
 - [ ] Check zone capacity in ServiceNow or the capacity dashboard
-
----
-
-## Escalation Guide
-
-| Symptom / Root Cause | Team | Channel |
-|----------------------|------|---------|
-| VSI stuck in starting (vnic) | RNOS (Network SRE) | PagerDuty: Network SRE |
-| VSI stuck in starting (vdisk) | RSOS (Storage SRE) | PagerDuty: Storage SRE |
-| VSI stuck in starting (compute) | RCOS / Compute SRE |  PagerDuty: Compute SRE |
-| VSI stuck in stopping / deleting | RCOS / Compute SRE | PagerDuty: Compute SRE |
-| VSI crashed / unexpected stop | Compute SRE  | PagerDuty: Compute SRE |
-| Hardware fault (multiple VMs on same host) | Compute SRE| PagerDuty: Compute SRE |
-| Encrypted volume / Keylore failure | SSRE / BYOK team | PagerDuty: BYOK |
-| Storage backend failure | RSOS (Storage SRE) | PagerDuty: Storage SRE |
-| Network / macvtap / NEI issue | RNOS (Network SRE) | PagerDuty: Network SRE |
-| Console not accessible | Compute SRE | PagerDuty: Compute SRE |
-| Scheduling failure / capacity | RCOS / Compute SRE 
-| DNS / ETCD / HAProxy cascade | Compute SRE + Platform SRE | PagerDuty: Compute SRE |
-| Insufficient RCOS pods | RCOS team |PagerDuty: Compute SRE |
-| Guest OS fault | Customer case
-| Unknown | Compute SRE | PagerDuty: Compute SRE |
-
-If not resolved within **30 minutes**, page out via PagerDuty using the [IPOPS VPC master on-call schedule](http://9.208.66.19:3002/core-master-on-call).
 
 ---
 
