@@ -1,6 +1,6 @@
-# VSI Issue — Must-Gather Guide (IPOPS)
+# VSI Issue — Must-Gather Guide
 
-This document defines the baseline data that IPOPS must collect whenever a Virtual Server Instance (VSI) has any issue — regardless of the symptom. Collect everything in this guide first, then follow the symptom-specific runbook.
+This document defines the standard baseline evidence that IPOPS must collect whenever a Virtual Server Instance (VSI) experiences an issue. The same baseline collection applies regardless of the initial symptom. After completing the baseline collection, IPOPS should follow the applicable symptom-specific runbook.
 
 **Covered issue types:**
 - VSI stuck in `starting` / `stopping` / `deleting`
