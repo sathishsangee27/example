@@ -1,7 +1,5 @@
 # VSI Issue — Must-Gather Guide (IPOPS)
 
-> **Tribe:** Compute &nbsp;|&nbsp; **Service:** RCOS &nbsp;|&nbsp; **Last updated:** July 2025 &nbsp;|&nbsp; **Impact:** Read-only — no customer impact
-
 This document defines the baseline data that IPOPS must collect whenever a Virtual Server Instance (VSI) has any issue — regardless of the symptom. Collect everything in this guide first, then follow the symptom-specific runbook.
 
 **Covered issue types:**
@@ -26,8 +24,6 @@ This document defines the baseline data that IPOPS must collect whenever a Virtu
 - [Step 7 — Blast Radius & Change Correlation](#step-7--blast-radius--change-correlation)
 - [Symptom-Specific Additions](#symptom-specific-additions)
 - [Escalation Guide](#escalation-guide)
-- [Must-Gather Artifact Template](#must-gather-artifact-template)
-- [Related Runbooks](#related-runbooks)
 
 ---
 
@@ -94,7 +90,7 @@ kubectl get deployments -n rias -l app=regional-dedicated-compute
 ### 2.2 InstanceSpec & InstanceStatus
 
 ```bash
-kubectl get instancespec <vsi-id> -n <account-namespace> -o yaml
+kubectl get instancespec <vsi-id> -n <namespace> -o yaml
 ```
 
 Note:
@@ -117,7 +113,7 @@ Note:
 ### 2.3 VirtualMachine object
 
 ```bash
-kubectl get virtualmachine <vm-name> -n <zone-namespace> -o yaml
+kubectl get virtualmachine <vsi-id> -n <namespace> -o yaml
 ```
 
 Note:
@@ -129,7 +125,7 @@ Note:
 ### 2.4 ComputeDomain & CapacityPoolVMAttachment
 
 ```bash
-kubectl get computedomain -n <zone-namespace> -o yaml
+kubectl get computedomain -n <namespace> -o yaml
 ```
 
 Note: `status.powerState`, any `deletionTimestamp`, and presence of finalizers.
@@ -143,7 +139,7 @@ Check for unexpected detachment or eviction events on `CapacityPoolVMAttachment`
 Run on the deployer for the affected zone. This is the single most important diagnostic tool.
 
 ```bash
-/opt/compute/bin/kube-vminfo -n <account-namespace> -v <vsi-id>
+/opt/compute/bin/kube-vminfo -n <namespace> -v <vsi-id>
 ```
 
 Capture the full output. Key fields:
@@ -171,7 +167,7 @@ Run these when a VSI is stuck in `starting`, `stopping`, or `deleting`.
 ### vmstuck — why is the VM not in the desired state?
 
 ```bash
-/opt/compute/bin/vmstuck -v <vsi-id> -n <account-namespace>
+/opt/compute/bin/vmstuck -v <vsi-id> -n <namespace>
 ```
 
 Record the full output. The tool identifies the blocking cause, e.g.:
@@ -186,7 +182,7 @@ Record the full output. The tool identifies the blocking cause, e.g.:
 ### vmtree — full resource dependency tree
 
 ```bash
-/opt/compute/bin/vmtree -n <account-namespace> -v <vsi-id> > vmtreeOutput.txt
+/opt/compute/bin/vmtree -n <namespace> -v <vsi-id> 
 ```
 
 Review to determine if the root cause is in vdisk, vnic, or compute.
@@ -245,20 +241,20 @@ Review to determine if the root cause is in vdisk, vnic, or compute.
 
 - [ ] **6.2** Check the host system journal around the event time:
   ```bash
-  journalctl -u libvirtd --since "<event-time - 10min>" --until "<event-time + 10min>"
+  sudo journalctl -u libvirtd --since "<event-time - 10min>" --until "<event-time + 10min>" | grep -E "(error|fail|warn)" | tail -20
   ```
   Patterns: `domain crash`, `guest panicked`, `watchdog timeout`, `qemu: terminating on signal`, `End of file from qemu monitor`, `Read-only file system`
 
 - [ ] **6.3** Check QEMU/KVM log for the specific VM:
   ```
-  /var/log/libvirt/qemu/<vm-name>.log
+  /var/log/libvirt/qemu/<virsh domain name>.log
   ```
   Look for: `qemu: hardware error`, `CPU reset`, `NMI`, `MCE (Machine Check Exception)`
 
 - [ ] **6.4** Check QEMU process state (for stuck-stopping):
   ```bash
   virsh list                          # get domain ID
-  virsh blockjob <domain-id> vda      # check if block job is stuck
+  
   ```
   A timeout error like `cannot acquire state change lock (held by monitor=remoteDispatchDomainSnapshotCreateXML)` means a QEMU lock is held.
 
@@ -275,29 +271,11 @@ Review to determine if the root cause is in vdisk, vnic, or compute.
   who -b
   ```
 
-- [ ] **6.7** Blast radius — check if other VMs on the same host are also affected:
-  ```bash
-  /opt/compute/bin/kube-vminfo --node <hypervisor-host>
-  ```
-  - **Multiple VMs affected** → likely hardware fault or host reboot → escalate to COM team
-  - **Only this VM affected** → likely guest OS, software, or configuration fault
-
----
-
-## Step 7 — Blast Radius & Change Correlation
-
-- [ ] **7.1** Check for other VSIs in the same zone/region reporting the same symptom in the same time window (ICL cross-account search if permitted)
-- [ ] **7.2** Check ServiceNow for open or recently closed incidents in the same region/zone overlapping the event window
-- [ ] **7.3** Check IBM Cloud status page or internal status board for announced maintenance or degradation for the region
-- [ ] **7.4** Search ServiceNow for HAProxy OS update CRs near the event time:
-  - `HAProxy + <region> + <event date>` — HAProxy node OS updates → Cilium restarts → DNS failures → cascading VSI impact is a known failure chain
-- [ ] **7.5** Check for recent ETCD restores or `vm-instance-controller` restarts that may have caused missed state updates
-
 ---
 
 ## Symptom-Specific Additions
 
-After completing Steps 1–7, collect these additional items based on the observed symptom.
+After completing Steps 1–6, collect these additional items based on the observed symptom.
 
 ### VSI stuck in `starting`
 
@@ -359,127 +337,28 @@ After completing Steps 1–7, collect these additional items based on the observ
 
 ## Escalation Guide
 
-> Single VSI issue = **Severity 3**. Infrastructure fault affecting multiple customers = **Severity 2**.
-
 | Symptom / Root Cause | Team | Channel |
 |----------------------|------|---------|
-| VSI stuck in starting (vnic) | RNOS (Network SRE) | `#genctl-network-control-path` · PagerDuty: Network SRE |
+| VSI stuck in starting (vnic) | RNOS (Network SRE) | PagerDuty: Network SRE |
 | VSI stuck in starting (vdisk) | RSOS (Storage SRE) | PagerDuty: Storage SRE |
-| VSI stuck in starting (compute) | RCOS / Compute SRE | `#rcos-genctl` · PagerDuty: Compute SRE |
-| VSI stuck in stopping / deleting | RCOS / Compute SRE | `#rcos-genctl` · PagerDuty: Compute SRE |
-| VSI crashed / unexpected stop | Compute SRE (COM) | `#rcos-genctl` · PagerDuty: Compute SRE |
-| Hardware fault (multiple VMs on same host) | Compute SRE (COM) zone team | PagerDuty: Compute SRE |
+| VSI stuck in starting (compute) | RCOS / Compute SRE |  PagerDuty: Compute SRE |
+| VSI stuck in stopping / deleting | RCOS / Compute SRE | PagerDuty: Compute SRE |
+| VSI crashed / unexpected stop | Compute SRE  | PagerDuty: Compute SRE |
+| Hardware fault (multiple VMs on same host) | Compute SRE| PagerDuty: Compute SRE |
 | Encrypted volume / Keylore failure | SSRE / BYOK team | PagerDuty: BYOK |
 | Storage backend failure | RSOS (Storage SRE) | PagerDuty: Storage SRE |
-| Network / macvtap / NEI issue | RNOS (Network SRE) | `#genctl-network-control-path` · PagerDuty: Network SRE |
-| Console not accessible | Compute SRE (COM) | PagerDuty: Compute SRE |
-| Scheduling failure / capacity | RCOS / Compute SRE | `#rcos-genctl` |
+| Network / macvtap / NEI issue | RNOS (Network SRE) | PagerDuty: Network SRE |
+| Console not accessible | Compute SRE | PagerDuty: Compute SRE |
+| Scheduling failure / capacity | RCOS / Compute SRE 
 | DNS / ETCD / HAProxy cascade | Compute SRE + Platform SRE | PagerDuty: Compute SRE |
-| Insufficient RCOS pods | RCOS team | `#rcos-genctl` · PagerDuty: Compute SRE |
-| Guest OS fault | Customer / L3 support | Customer ticket |
-| Unknown | Compute SRE | `#rcos-genctl` · PagerDuty: Compute SRE |
+| Insufficient RCOS pods | RCOS team |PagerDuty: Compute SRE |
+| Guest OS fault | Customer case
+| Unknown | Compute SRE | PagerDuty: Compute SRE |
 
 If not resolved within **30 minutes**, page out via PagerDuty using the [IPOPS VPC master on-call schedule](http://9.208.66.19:3002/core-master-on-call).
 
 ---
 
-## Must-Gather Artifact Template
-
-Copy, fill in, and attach to the ServiceNow incident or Jira ticket.
-
-```
-=== VSI Issue Must-Gather ===
-VSI ID:
-Account Namespace:
-Region / Zone:
-Issue Timestamp (UTC):
-Reported By:
-Observed Symptom / Current State:
-
---- Step 1: Identification ---
-Customer-initiated action in CR? Y/N  (CR#: )
-VSI Profile:
-OS Type:
-ServiceNow CR / INC overlap? Y/N  (details: )
-
---- Step 2: Control Plane ---
-regional-compute pods READY:        /
-instance-spec-controller pods READY:/
-InstanceSpec state:
-InstanceSpec shouldRun:
-InstanceSpec deletionTimestamp:
-InstanceSpec finalizers remaining:
-InstanceStatus state / reason:
-VirtualMachine phase:
-VirtualMachine powerState:
-VirtualMachine nodeName (hypervisor host):
-ComputeDomain powerState:
-ComputeDomain deletionTimestamp:
-Abnormal conditions / finalizers:
-
---- Step 3: kube-vminfo ---
-hvState:
-vmStatus:
-schedulable / runnable:
-COMPUTE NODE / IPADDR:
-compute-agent pod name:
-(Waiting for ...) lines:
-cloud-init ready:
-vdisk states (volumeProvisioned / readyToAttach / attached):
-vnic attached:
-State change history (last 3 transitions):
-
---- Step 4: vmstuck / vmtree (if stuck) ---
-vmstuck output (blocking reason):
-
---- Step 5: ICL Logs Summary ---
-instance-spec-controller findings:
-regional-compute findings:
-vm-instance-controller findings:
-compute-agent findings:
-DNS/ETCD/HAProxy findings:
-Storage logs findings (volume-controller / keylore):
-Network logs findings (fabcon-manager / vni-controller):
-
---- Step 6: Hypervisor Host (if accessible) ---
-Host rebooted? Y/N
-MCE / hw errors in dmesg? Y/N  (details: )
-QEMU log finding:
-QEMU lock held? Y/N  (held by: )
-Other VMs affected on same host? Y/N  (count: )
-
---- Step 7: Blast Radius ---
-Other VSIs affected in zone/region? Y/N  (count: )
-Open incident in region? Y/N  (INC#: )
-HAProxy / maintenance CR overlap? Y/N  (CR#: )
-ETCD restore or controller restart near event? Y/N
-
---- Symptom-Specific ---
-(fill in applicable section from the runbook)
-
---- Root Cause Assessment ---
-Likely category:
-  [ ] 1 - Guest OS fault
-  [ ] 2 - Hardware fault
-  [ ] 3 - Hypervisor / QEMU fault
-  [ ] 4 - Control-plane triggered action
-  [ ] 5 - Infrastructure cascade (DNS/ETCD/HAProxy)
-  [ ] 6 - Storage fault
-  [ ] 7 - Network fault
-  [ ] 8 - Encryption / key management fault
-  [ ] 9 - Scheduling / capacity failure
-  [ ] 10 - Unknown
-Supporting evidence:
-Transient errors excluded:
-
---- Actions Taken ---
-[ ] Escalated to:
-[ ] Ticket / Jira created:
-[ ] Customer notified:
-[ ] Symptom-specific runbook followed: (link: )
-```
-
----
 
 ## Related Runbooks
 
@@ -499,4 +378,4 @@ Transient errors excluded:
 
 ---
 
-*Compute SRE Slack: `#rcos-genctl` in ibm-cloudplatform workspace*
+
